@@ -1,0 +1,37 @@
+FTKTOOLKIT_CPP_API std::vector<cv::Mat> FTK::Hyperspect::readBinaryData_mapWithBlackWhiteData(unsigned char * inputBinFile, int waveNumbers, int waveSamples, int lineNumbers, std::vector<std::vector<float>>& whiteurrent, std::vector<std::vector<float>>& blackCurrent)
+{
+	int flag;
+
+	const char *p = (const char *)(char*)inputBinFile;
+	fstream fin;
+	fin.open(p, ios::binary | ios::in);
+	std::vector<cv::Mat> result;
+	std::vector<float> blackCurrentValue;
+	std::vector<float> whiteCurrentValue;
+	if (fin.is_open()) {
+		ULL imageRow = lineNumbers;
+		ULL imageCol = waveSamples;
+		result.resize(waveNumbers);
+		for (int i = 0; i < result.size(); i++) {
+			result[i] = Mat(imageRow, imageCol, CV_32FC1, FBLANK);
+		}
+		float dataBuf[8000];
+		for (int stripeNum = 0; stripeNum < imageRow; stripeNum++) {
+			for (int waveLengthNum = 0; waveLengthNum <waveNumbers; waveLengthNum++) {
+				blackCurrentValue = blackCurrent[waveLengthNum];
+				whiteCurrentValue = whiteurrent[waveLengthNum];
+				int degj = stripeNum*waveNumbers *waveSamples * sizeof(float) + waveLengthNum *waveSamples * sizeof(float);
+				fin.seekg(stripeNum*waveNumbers *waveSamples * sizeof(float) + waveLengthNum *waveSamples * sizeof(float), ios::beg);
+				fin.read((char*)dataBuf, sizeof(float)*waveSamples);
+				for (int j = 0; j < waveSamples; j++) {
+					if (dataBuf[j] - blackCurrentValue[j] < 0) { dataBuf[j] = 0; continue; }
+					if(whiteCurrentValue[j] - blackCurrentValue[j]<=0) { dataBuf[j] = 0; continue; }
+					dataBuf[j] = (dataBuf[j] - blackCurrentValue[j]) / ((whiteCurrentValue[j]-blackCurrentValue[j]));
+				}
+				std::memcpy(result[waveLengthNum].ptr<float>(stripeNum), dataBuf, waveSamples * sizeof(float));
+			}
+		}
+	}
+	fin.close();
+	return result;
+}

@@ -1,0 +1,37 @@
+FTKTOOLKIT_CPP_API std::vector<cv::Mat> FTK::Hyperspect::readBinaryData(unsigned char * inputBinFile, int waveNumbers, int waveSamples, int lineNumbers, double lowBoundary, double highBoundary)
+{
+	int flag;
+
+	const char *p = (const char *)(char*)inputBinFile;
+	fstream fin;
+	fin.open(p, ios::binary | ios::in);
+	std::vector<cv::Mat> result;
+
+	if (fin.is_open()) {
+		fin.seekg(0, fin.end);
+		ULL srcSize = fin.tellg();
+		ULL imageRow = lineNumbers;
+		ULL imageCol = waveSamples;
+		result.resize(waveNumbers);
+		for (int i = 0; i < result.size(); i++) {
+			result[i] = Mat(imageRow, imageCol, CV_32FC1, FBLANK);
+		}
+		float dataBuf[8000];
+		for (int stripeNum = 0; stripeNum < imageRow; stripeNum++) {
+			for (int waveLengthNum = 0; waveLengthNum <waveNumbers; waveLengthNum++) {
+				int degj = stripeNum*waveNumbers *waveSamples * sizeof(float) + waveLengthNum *waveSamples * sizeof(float);
+				fin.seekg(stripeNum*waveNumbers *waveSamples * sizeof(float) + waveLengthNum *waveSamples * sizeof(float), ios::beg);
+				fin.read((char*)dataBuf, sizeof(float)*waveSamples);
+				for (int pos = 0; pos < waveSamples; pos++) {
+					dataBuf[pos] = abs((dataBuf[pos] - lowBoundary) / (highBoundary - lowBoundary));
+				}
+				memcpy(result[waveLengthNum].ptr<float>(stripeNum), dataBuf, waveSamples * sizeof(float));
+			}
+		}
+	}
+	for (int impo = 0; impo < result.size(); impo++) {
+		FTK::MatOperation::markImageBoundary(result[impo], FBLANK, 2);
+	}
+	fin.close();	
+	return result;
+}
